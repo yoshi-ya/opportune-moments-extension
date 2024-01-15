@@ -1,11 +1,16 @@
 {
-    "name": "Opportune Moments Extension",
-    "version": "1.0.0",
-    "description": "researching opportune moments for security tasks",
-    "manifest_version": 3,
-    "author": "Yousif Yacoub",
-    "action":{
-        "default_popup": "index.html",
-        "default_title": "Opportune Moments Extension"
-    }
+  "name": "Opportune Moments Extension",
+  "version": "1.0.0",
+  "description": "researching opportune moments for security tasks",
+  "permissions": [
+    "identity",
+    "identity.email",
+    "storage"
+  ],
+  "manifest_version": 3,
+  "author": "Yousif Yacoub",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Opportune Moments Extension"
+  }
 }
