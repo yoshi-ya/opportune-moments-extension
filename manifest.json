@@ -5,12 +5,28 @@
   "permissions": [
     "identity",
     "identity.email",
-    "storage"
+    "storage",
+    "activeTab",
+    "tabs",
+    "webNavigation",
+    "scripting"
   ],
   "manifest_version": 3,
   "author": "Yousif Yacoub",
   "action": {
     "default_popup": "popup.html",
     "default_title": "Opportune Moments Extension"
-  }
+  },
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*",
+    "https://duckduckgo.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [{
+        "matches": ["<all_urls>"],
+        "js": ["test.js"]
+    }]
 }
