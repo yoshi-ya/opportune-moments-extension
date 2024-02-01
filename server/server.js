@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors')
 const axios = require('axios');
 const {MongoClient, ServerApiVersion} = require('mongodb');
+const directory = require('./2fa_directory.json');
 
 const dbUri = 'mongodb://localhost:27017';
 const app = express();
@@ -40,12 +41,31 @@ const connectDb = async () => {
     }
 }
 
+
+const check2FA = (domain) => {
+    let isAvailable = false;
+    isAvailable = directory.some((entry) => {
+        return domain.includes(entry[1].domain);
+    });
+    if(!isAvailable) {
+        isAvailable = directory.some((entry) => {
+            if (!entry[1]["additional-domains"]) return false;
+            return entry[1]["additional-domains"].some((additionalDomain) => {
+                return domain.includes(additionalDomain);
+            });
+        });
+    }
+    return isAvailable;
+}
+
 // routes
 app.post('/user', async (req, res) => {
     // const collection = client.db("users").collection("users");
     const userEmail = req.body.email;
     const userUrl = req.body.url;
     console.log(`User email: ${userEmail}, User URL: ${userUrl}`);
+    const is2FAvailable = check2FA(userUrl);
+    console.log(`2FA available: ${is2FAvailable}`);
     // const url = `https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}`;
     // const headers = {
     //     headers: {
