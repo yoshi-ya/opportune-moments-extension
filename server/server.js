@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors')
 const axios = require('axios');
-const {MongoClient, ServerApiVersion} = require('mongodb');
+const {MongoClient} = require('mongodb');
 const directory = require('./2fa_directory.json');
 
 const dbUri = 'mongodb://mongodb:27017/';
@@ -29,14 +29,12 @@ const connectDb = async () => {
         console.log("Database connected.");
     } catch (error) {
         console.log("Could not connect to DB.")
-        console.error(error);
         await client.close();
     }
 }
 
 const check2FA = (domain) => {
-    let isAvailable = false;
-    isAvailable = directory.some((entry) => {
+    let isAvailable = directory.some((entry) => {
         return domain.includes(entry[1].domain);
     });
     if (!isAvailable) {
@@ -50,38 +48,80 @@ const check2FA = (domain) => {
     return isAvailable;
 }
 
+const getCompromisedAccounts = async (email) => {
+    const url = `https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}`;
+    const headers = {
+        headers: {
+            'hibp-api-key': '70b84be5249249daa49a3afc49616a20',
+            'Content-Type': 'application/json',
+        },
+        params: {
+            'truncateResponse': 'false',
+        }
+    }
+
+    let breaches = [];
+    try {
+        const response = await axios.get(url, headers);
+        if (response.status !== 404) {
+            for (const breach of response.data) {
+                breaches.push({name: breach.Name, domain: breach.Domain});
+            }
+        }
+    } catch (error) {
+        console.log(error);
+    }
+    return breaches;
+}
+
+const createCompromisedPwTask = async (email, accounts) => {
+    const collection = client.db("app").collection("users");
+    for (const account of accounts) {
+        await collection.findOneAndUpdate({email: email}, {
+            $push: {
+                tasks: {
+                    type: "pw",
+                    content: { name: account.name, domain: account.domain },
+                    state: "PENDING",
+                }
+            }
+        });
+    }
+}
+
+const create2FATask = async (email, url) => {
+    const collection = client.db("app").collection("users");
+    await collection.findOneAndUpdate({email: email}, {
+        $push: {
+            tasks: {
+                type: "2fa", content: url, state: "PENDING"
+            }
+        }
+    });
+}
+
 // routes
 app.post('/user', async (req, res) => {
+    const collection = client.db("app").collection("users");
     const userEmail = req.body.email;
     const userUrl = req.body.url;
-    console.log(`User email: ${userEmail}, User URL: ${userUrl}`);
+
+    let user;
+    try {
+        user = await collection.findOne({email: userEmail});
+    } catch (err) {
+        console.log(`Could not find user ${userEmail} in DB.`);
+    }
+
+    if (!user) {
+        console.log(`User ${userEmail} not found in DB.`);
+        console.log("Creating new user...");
+        await collection.insertOne({ email: userEmail });
+        const compromisedAccounts = await getCompromisedAccounts(userEmail);
+        await createCompromisedPwTask(userEmail, compromisedAccounts);
+    }
+
     const is2FAvailable = check2FA(userUrl);
-    // const url = `https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}`;
-    // const headers = {
-    //     headers: {
-    //         'hibp-api-key': '70b84be5249249daa49a3afc49616a20',
-    //     }
-    // }
-    // res.setHeader('Content-Type', 'application/json');
-    // let compromised = false;
-    // let accounts = [];
-    //
-    // try {
-    //     const response = await axios.get(url, headers);
-    //     if (response.status !== 404) {
-    //         accounts = response.data;
-    //         compromised = true;
-    //     }
-    //     return res.send({"accounts": accounts});
-    // } catch (error) {
-    //     if (error.response.statusCode === 404) {
-    //         return res.send({"accounts": accounts});
-    //     }
-    // }
-    // // todo: store information
-    // console.log("Writing into DB...");
-    // await collection.insertOne({email: email, compromised: compromised, accounts: accounts});
-    // console.log("Done!");
     return res.send({"userEmail": userEmail, "userUrl": userUrl, "2fa": is2FAvailable});
 });
 
