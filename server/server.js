@@ -4,7 +4,7 @@ const axios = require('axios');
 const {MongoClient, ServerApiVersion} = require('mongodb');
 const directory = require('./2fa_directory.json');
 
-const dbUri = 'mongodb://localhost:27017';
+const dbUri = 'mongodb://mongodb:27017/';
 const app = express();
 const port = 3000;
 
@@ -21,19 +21,12 @@ app.use(logger)
 app.use(express.json());
 
 
-const client = new MongoClient(dbUri, {
-    serverApi: {
-        version: ServerApiVersion.v1,
-        strict: true,
-        deprecationErrors: true,
-    }
-});
+const client = new MongoClient(dbUri, {});
 
 const connectDb = async () => {
     try {
         await client.connect();
-        await client.db("users").command({ping: 1});
-        console.log("You successfully connected to MongoDB!");
+        console.log("Database connected.");
     } catch (error) {
         console.log("Could not connect to DB.")
         console.error(error);
@@ -41,13 +34,12 @@ const connectDb = async () => {
     }
 }
 
-
 const check2FA = (domain) => {
     let isAvailable = false;
     isAvailable = directory.some((entry) => {
         return domain.includes(entry[1].domain);
     });
-    if(!isAvailable) {
+    if (!isAvailable) {
         isAvailable = directory.some((entry) => {
             if (!entry[1]["additional-domains"]) return false;
             return entry[1]["additional-domains"].some((additionalDomain) => {
@@ -60,12 +52,10 @@ const check2FA = (domain) => {
 
 // routes
 app.post('/user', async (req, res) => {
-    // const collection = client.db("users").collection("users");
     const userEmail = req.body.email;
     const userUrl = req.body.url;
     console.log(`User email: ${userEmail}, User URL: ${userUrl}`);
     const is2FAvailable = check2FA(userUrl);
-    console.log(`2FA available: ${is2FAvailable}`);
     // const url = `https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}`;
     // const headers = {
     //     headers: {
@@ -92,11 +82,11 @@ app.post('/user', async (req, res) => {
     // console.log("Writing into DB...");
     // await collection.insertOne({email: email, compromised: compromised, accounts: accounts});
     // console.log("Done!");
-    return res.send({"userEmail": userEmail, "userUrl": userUrl});
+    return res.send({"userEmail": userEmail, "userUrl": userUrl, "2fa": is2FAvailable});
 });
 
 // Start the server and listen on the specified port
 app.listen(port, async () => {
-    // await connectDb();
+    await connectDb();
     console.log(`Server is running on http://localhost:${port}`);
 });

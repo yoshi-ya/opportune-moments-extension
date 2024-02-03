@@ -1,3 +1,13 @@
+# IDE files
 .idea/
 opportune-moments-plugin.iml
+
+# node modules
 server/node_modules/
+
+# dotenv environment file
+.env
+*/.env
+
+# db content
+*/data/
