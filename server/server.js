@@ -52,7 +52,7 @@ const getCompromisedAccounts = async (email) => {
     const url = `https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}`;
     const headers = {
         headers: {
-            'hibp-api-key': '70b84be5249249daa49a3afc49616a20',
+            'hibp-api-key': process.env.HIBP_API_KEY,
             'Content-Type': 'application/json',
         },
         params: {
@@ -96,6 +96,16 @@ const createCompromisedPwTask = async (email, accounts) => {
 
 const create2FATask = async (email, url) => {
     const collection = client.db("app").collection("users");
+    let taskExists = false;
+    try {
+        await collection.findOne({email: email, "tasks.type": "2fa", "tasks.content": url});
+        taskExists = true;
+    } catch (err) {
+        console.log('No existing 2FA task found.');
+    }
+    if (taskExists) {
+        return;
+    }
     try {
         await collection.findOneAndUpdate({email: email}, {
             $push: {
@@ -118,6 +128,95 @@ const initializeUser = async (email) => {
     await createCompromisedPwTask(email, compromisedAccounts);
 }
 
+const getNext2FATask = async (email) => {
+    const collection = client.db("app").collection("users");
+    let user;
+    try {
+        user = await collection.findOne({email: email});
+    } catch (err) {
+        console.log(`Could not find user ${email} in DB.`);
+        return;
+    }
+    try {
+        const tasks = user.tasks;
+        for (const task of tasks) {
+            if (task.type === "2fa" && task.state === "PENDING") {
+                return task;
+            }
+        }
+    } catch (err) {
+        console.log(`Could not find 2FA task for user ${email}.`);
+    }
+}
+
+const getNextCompromisedPwTask = async (email) => {
+    const collection = client.db("app").collection("users");
+    let user;
+    try {
+        user = await collection.findOne({email: email});
+    } catch (err) {
+        console.log(`Could not find user ${email} in DB.`);
+        return;
+    }
+    try {
+        const tasks = user.tasks;
+        for (const task of tasks) {
+            if (task.type === "pw" && task.state === "PENDING") {
+                return task;
+            }
+        }
+    } catch (err) {
+        console.log(`Could not find compromised password task for user ${email}.`);
+    }
+}
+
+const updateLast2FaNotificationDate = async (email) => {
+    const collection = client.db("app").collection("users");
+    const now = new Date();
+    try {
+        await collection.updateOne({email: email}, {$set: {last2FaNotificationDate: now}});
+    } catch (err) {
+        console.log(`Could not update last 2FA notification date for user ${email}.`);
+    }
+}
+
+const getNextSecurityTask = async (email) => {
+    const collection = client.db("app").collection("users");
+    let user;
+    try {
+        user = await collection.findOne({email: email});
+    } catch (err) {
+        console.log(`Could not find user ${email} in DB.`);
+        return;
+    }
+    const now = new Date();
+    if (!user.last2FaNotificationDate) {
+        await updateLast2FaNotificationDate(email);
+    }
+    const last2FaNotificationDate = user.last2FaNotificationDate || now;
+    const timeDiff2Fa = Math.abs(now - last2FaNotificationDate) / 1000;
+
+    const lastPwNotificationDate = user.lastPwNotificationDate;
+    const timeDiffPw = Math.abs(now - lastPwNotificationDate) / 1000;
+
+    // 3 hours timeout for 2FA notifications, 24 hours for compromised password notifications
+    const notification2FaPossible = timeDiff2Fa > 60 * 60 * 3;
+    const notificationPwPossible = timeDiffPw > 60 * 60 * 24;
+
+    // get the next possible security task
+    if (notification2FaPossible && notificationPwPossible) {
+        if (Math.random() >= 0.5) {
+            return await getNext2FATask(email);
+        }
+        return await getNextCompromisedPwTask(email);
+    } else if (notification2FaPossible) {
+        return await getNext2FATask(email);
+    } else if (notificationPwPossible) {
+        return await getNextCompromisedPwTask(email);
+    }
+    return undefined;
+}
+
 // routes
 app.post('/user', async (req, res) => {
     const collection = client.db("app").collection("users");
@@ -133,7 +232,7 @@ app.post('/user', async (req, res) => {
 
     if (!user) {
         await initializeUser(userEmail);
-        return res.sendStatus(200);
+        return res.sendStatus(201);
     }
 
     const is2FAvailable = check2FA(userUrl);
@@ -141,8 +240,16 @@ app.post('/user', async (req, res) => {
         await create2FATask(userEmail, userUrl);
     }
 
+    const securityTask = await getNextSecurityTask(userEmail);
+    if (securityTask) {
+        await updateLast2FaNotificationDate(userEmail);
+        return res.send({
+            type: securityTask.type,
+            content: securityTask.content,
+        });
+    }
 
-    return res.send({"userEmail": userEmail, "userUrl": userUrl, "2fa": is2FAvailable});
+    return res.sendStatus(200);
 });
 
 // Start the server and listen on the specified port
