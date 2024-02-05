@@ -76,28 +76,46 @@ const getCompromisedAccounts = async (email) => {
 
 const createCompromisedPwTask = async (email, accounts) => {
     const collection = client.db("app").collection("users");
-    for (const account of accounts) {
-        await collection.findOneAndUpdate({email: email}, {
-            $push: {
-                tasks: {
-                    type: "pw",
-                    content: { name: account.name, domain: account.domain },
-                    state: "PENDING",
+    try {
+        for (const account of accounts) {
+            await collection.findOneAndUpdate({email: email}, {
+                $push: {
+                    tasks: {
+                        type: "pw",
+                        content: {name: account.name, domain: account.domain},
+                        state: "PENDING",
+                    }
                 }
-            }
-        });
+            });
+        }
+    } catch (err) {
+        console.log('Could not create compromised password task.');
+        console.log(err);
     }
 }
 
 const create2FATask = async (email, url) => {
     const collection = client.db("app").collection("users");
-    await collection.findOneAndUpdate({email: email}, {
-        $push: {
-            tasks: {
-                type: "2fa", content: url, state: "PENDING"
+    try {
+        await collection.findOneAndUpdate({email: email}, {
+            $push: {
+                tasks: {
+                    type: "2fa", content: url, state: "PENDING"
+                }
             }
-        }
-    });
+        });
+    } catch (err) {
+        console.log('Could not create 2FA task.');
+        console.log(err);
+    }
+}
+
+const initializeUser = async (email) => {
+    const collection = client.db("app").collection("users");
+    console.log("Creating new user...");
+    await collection.insertOne({email: email});
+    const compromisedAccounts = await getCompromisedAccounts(email);
+    await createCompromisedPwTask(email, compromisedAccounts);
 }
 
 // routes
@@ -114,14 +132,16 @@ app.post('/user', async (req, res) => {
     }
 
     if (!user) {
-        console.log(`User ${userEmail} not found in DB.`);
-        console.log("Creating new user...");
-        await collection.insertOne({ email: userEmail });
-        const compromisedAccounts = await getCompromisedAccounts(userEmail);
-        await createCompromisedPwTask(userEmail, compromisedAccounts);
+        await initializeUser(userEmail);
+        return res.sendStatus(200);
     }
 
     const is2FAvailable = check2FA(userUrl);
+    if (is2FAvailable) {
+        await create2FATask(userEmail, userUrl);
+    }
+
+
     return res.send({"userEmail": userEmail, "userUrl": userUrl, "2fa": is2FAvailable});
 });
 
