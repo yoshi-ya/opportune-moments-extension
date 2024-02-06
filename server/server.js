@@ -4,7 +4,7 @@ const axios = require('axios');
 const {MongoClient} = require('mongodb');
 const directory = require('./2fa_directory.json');
 
-const dbUri = 'mongodb://mongodb:27017/';
+const dbUri = `mongodb://${process.env.DB_USER}:${process.env.DB_PASSWORD}@mongodb:27017/`;
 const app = express();
 const port = 3000;
 
@@ -29,6 +29,7 @@ const connectDb = async () => {
         console.log("Database connected.");
     } catch (error) {
         console.log("Could not connect to DB.")
+        console.log(error);
         await client.close();
     }
 }
@@ -69,7 +70,7 @@ const getCompromisedAccounts = async (email) => {
             }
         }
     } catch (error) {
-        console.log(error);
+        console.log('No breaches found for this email.');
     }
     return breaches;
 }

@@ -27,6 +27,24 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
             headline = `Your password has been found in a data breach for ${data.content}`;
             subHeadline = "Would you like to change it?";
         }
-        swal(headline, subHeadline);
+        swal({
+            title: headline,
+            text: subHeadline,
+            icon: "warning",
+            buttons: {
+                cancel: "remind me later",
+                catch: {
+                    text: "I already have 2FA enabled",
+                    value: "done",
+                },
+            },
+        })
+            .then((value) => {
+                if (value === "done") {
+                    swal("Got it!", "You're all set.", "success");
+                } else {
+                    swal("Alright!", "I'll remind you later.", "info");
+                }
+            });
     }
 });
