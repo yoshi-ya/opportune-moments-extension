@@ -22,7 +22,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         try {
             setTimeout(async () => {
                 await chrome.tabs.sendMessage(tabId, {message: "urlChanged", url: changeInfo.url, email: email});
-            }, 2000);
+            }, 5000);
         } catch (error) {
             console.log(error);
         }

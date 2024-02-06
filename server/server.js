@@ -96,24 +96,32 @@ const createCompromisedPwTask = async (email, accounts) => {
 
 const create2FATask = async (email, url) => {
     const collection = client.db("app").collection("users");
-    let taskExists = false;
+    let user;
     try {
-        await collection.findOne({email: email, "tasks.type": "2fa", "tasks.content": url});
-        taskExists = true;
+        user = await collection.findOne({email: email});
     } catch (err) {
-        console.log('No existing 2FA task found.');
+        console.log('Could not find user in DB.');
     }
-    if (taskExists) {
-        return;
+    if (user.tasks) {
+        const tasks = user.tasks.filter((task) => {
+            return task.type === "2fa";
+        });
+        const taskExists = tasks.some((task) => {
+            return url.includes(task.url);
+        });
+        if (taskExists) {
+            return;
+        }
     }
     try {
         await collection.findOneAndUpdate({email: email}, {
             $push: {
                 tasks: {
-                    type: "2fa", content: url, state: "PENDING"
+                    type: "2fa", url: url, state: "PENDING"
                 }
             }
         });
+        return {type: "2fa", url: url, state: "PENDING"};
     } catch (err) {
         console.log('Could not create 2FA task.');
         console.log(err);
@@ -128,27 +136,6 @@ const initializeUser = async (email) => {
     await createCompromisedPwTask(email, compromisedAccounts);
 }
 
-const getNext2FATask = async (email) => {
-    const collection = client.db("app").collection("users");
-    let user;
-    try {
-        user = await collection.findOne({email: email});
-    } catch (err) {
-        console.log(`Could not find user ${email} in DB.`);
-        return;
-    }
-    try {
-        const tasks = user.tasks;
-        for (const task of tasks) {
-            if (task.type === "2fa" && task.state === "PENDING") {
-                return task;
-            }
-        }
-    } catch (err) {
-        console.log(`Could not find 2FA task for user ${email}.`);
-    }
-}
-
 const getNextCompromisedPwTask = async (email) => {
     const collection = client.db("app").collection("users");
     let user;
@@ -158,12 +145,20 @@ const getNextCompromisedPwTask = async (email) => {
         console.log(`Could not find user ${email} in DB.`);
         return;
     }
+    const now = new Date();
+    const lastPwNotificationDate = user.lastPwNotificationDate || now;
+    const timeDiff = Math.abs(now - lastPwNotificationDate) / 1000;
+    if (!timeDiff > 60 * 60 * 24) {
+        return;
+    }
+
     try {
         const tasks = user.tasks;
-        for (const task of tasks) {
-            if (task.type === "pw" && task.state === "PENDING") {
-                return task;
-            }
+        const pwTasks = tasks.filter((task) => {
+            return task.type === "pw" && task.state === "PENDING";
+        });
+        if (pwTasks.length > 0) {
+            return pwTasks[0];
         }
     } catch (err) {
         console.log(`Could not find compromised password task for user ${email}.`);
@@ -172,49 +167,20 @@ const getNextCompromisedPwTask = async (email) => {
 
 const updateLast2FaNotificationDate = async (email) => {
     const collection = client.db("app").collection("users");
-    const now = new Date();
     try {
-        await collection.updateOne({email: email}, {$set: {last2FaNotificationDate: now}});
+        await collection.updateOne({email: email}, {$set: {last2FaNotificationDate: new Date()}});
     } catch (err) {
         console.log(`Could not update last 2FA notification date for user ${email}.`);
     }
 }
 
-const getNextSecurityTask = async (email) => {
+const updateLastPwNotificationDate = async (email) => {
     const collection = client.db("app").collection("users");
-    let user;
     try {
-        user = await collection.findOne({email: email});
+        await collection.updateOne({email: email}, {$set: {lastPwNotificationDate: new Date()}});
     } catch (err) {
-        console.log(`Could not find user ${email} in DB.`);
-        return;
+        console.log(`Could not update last compromised password notification date for user ${email}.`);
     }
-    const now = new Date();
-    if (!user.last2FaNotificationDate) {
-        await updateLast2FaNotificationDate(email);
-    }
-    const last2FaNotificationDate = user.last2FaNotificationDate || now;
-    const timeDiff2Fa = Math.abs(now - last2FaNotificationDate) / 1000;
-
-    const lastPwNotificationDate = user.lastPwNotificationDate;
-    const timeDiffPw = Math.abs(now - lastPwNotificationDate) / 1000;
-
-    // 3 hours timeout for 2FA notifications, 24 hours for compromised password notifications
-    const notification2FaPossible = timeDiff2Fa > 60 * 60 * 3;
-    const notificationPwPossible = timeDiffPw > 60 * 60 * 24;
-
-    // get the next possible security task
-    if (notification2FaPossible && notificationPwPossible) {
-        if (Math.random() >= 0.5) {
-            return await getNext2FATask(email);
-        }
-        return await getNextCompromisedPwTask(email);
-    } else if (notification2FaPossible) {
-        return await getNext2FATask(email);
-    } else if (notificationPwPossible) {
-        return await getNextCompromisedPwTask(email);
-    }
-    return undefined;
 }
 
 // routes
@@ -237,16 +203,17 @@ app.post('/user', async (req, res) => {
 
     const is2FAvailable = check2FA(userUrl);
     if (is2FAvailable) {
-        await create2FATask(userEmail, userUrl);
+        const taskCreated = await create2FATask(userEmail, userUrl);
+        if (taskCreated) {
+            await updateLast2FaNotificationDate(userEmail);
+            return res.send(taskCreated);
+        }
     }
 
-    const securityTask = await getNextSecurityTask(userEmail);
-    if (securityTask) {
-        await updateLast2FaNotificationDate(userEmail);
-        return res.send({
-            type: securityTask.type,
-            content: securityTask.content,
-        });
+    const compromisedPwTask = await getNextCompromisedPwTask(userEmail);
+    if (compromisedPwTask) {
+        await updateLastPwNotificationDate(userEmail);
+        return res.send(compromisedPwTask);
     }
 
     return res.sendStatus(200);
@@ -257,3 +224,14 @@ app.listen(port, async () => {
     await connectDb();
     console.log(`Server is running on http://localhost:${port}`);
 });
+/* todo:
+    - 2FA
+        - trigger 2FA tasks immediately if task does not exist yet
+        - Buttons: remindMeLater -> 1h timeout, dismiss -> never ask again, alreadyEnables -> never ask again
+        - discuss with Maxi whether is is a good idea
+    - compromised passwords
+        - compromised passwords: 24h timeout between compromised password notifications
+        - Buttons: takeMeThere -> open link, remindMeLater -> 1h timeout, dismiss -> never ask again
+    - if quickly feasible, move notifications (also dismissed ones) into a table inside the popup
+    - notifications can be managed from there
+*/
