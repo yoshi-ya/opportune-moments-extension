@@ -2,9 +2,10 @@ const express = require('express');
 const cors = require('cors')
 const axios = require('axios');
 const {MongoClient} = require('mongodb');
+const {OpenAI} = require("openai");
 const directory = require('./2fa_directory.json');
 
-const dbUri = `mongodb://${process.env.DB_USER}:${process.env.DB_PASSWORD}@mongodb:27017/`;
+const dbUri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.egjedqq.mongodb.net/?retryWrites=true&w=majority`;
 const app = express();
 const port = 3000;
 
@@ -22,6 +23,7 @@ app.use(express.json());
 
 
 const client = new MongoClient(dbUri, {});
+const openai = new OpenAI();
 
 const connectDb = async () => {
     try {
@@ -123,7 +125,7 @@ const create2FATask = async (email, url) => {
                 }
             }
         });
-        return { type: "2fa", url: url, state: "PENDING" };
+        return {type: "2fa", url: url, state: "PENDING"};
     } catch (err) {
         console.log('Could not create 2FA task.');
         console.log(err);
@@ -185,6 +187,25 @@ const updateLastPwNotificationDate = async (email) => {
     }
 }
 
+async function get2FaInstructions(url) {
+    console.log(`Getting 2FA instructions for ${url}`);
+  const completion = await openai.chat.completions.create({
+    messages: [{ role: "system", content: `Give a very short summary on how to enable 2FA for ${url}` }],
+    model: "gpt-3.5-turbo",
+  });
+  console.log(completion);
+  return completion.choices[0].message?.content;
+}
+
+async function getPwInstructions(url) {
+  const completion = await openai.chat.completions.create({
+    messages: [{ role: "system", content: `Give a very short summary on how to change your password for ${url}` }],
+    model: "gpt-3.5-turbo",
+  });
+
+  return completion.choices[0].message?.content;
+}
+
 // routes
 app.post('/user', async (req, res) => {
     const collection = client.db("app").collection("users");
@@ -219,6 +240,18 @@ app.post('/user', async (req, res) => {
     }
 
     return res.sendStatus(200);
+});
+
+app.get("/instructions/:type/:url", async (req, res) => {
+    const type = req.params.type;
+    const url = req.params.url;
+    let instructions;
+    if (type === "2fa") {
+        instructions = await get2FaInstructions(url);
+    } else if (type === "pw") {
+        instructions = await getPwInstructions(url);
+    }
+    res.send({data: instructions});
 });
 
 // Start the server and listen on the specified port

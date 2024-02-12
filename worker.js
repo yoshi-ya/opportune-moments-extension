@@ -18,36 +18,23 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
     if (request.message === "urlChanged") {
         const res = await sendData(request.email, request.url);
         const data = await res.json();
+        if (!data) {
+            return;
+        }
+        const instructionsRes = await fetch(`http://localhost:3000/instructions/${data.type}/${encodeURIComponent(request.url)}`);
+        const instructions = await instructionsRes.json();
         let headline = "";
-        let subHeadline = "";
+        let text = "";
         if (data.type === "2fa") {
             headline = "This website offers 2FA.";
-            subHeadline = "Would you like to enable it?";
-            swal({
-            title: headline,
-            text: subHeadline,
-            icon: "warning",
-            buttons: {
-                cancel: "No, thanks",
-                ok: true,
-            },
-        })
-            .then((value) => {
-                if (value === "ok") {
-                    const instruction = "OpenAI instructions...";
-                    return swal("Perfect! Here's an instruction:", instruction, "info");
-                }
-            })
-            .then(() => {
-                swal("Survey! ", "Please tell us more about this moment...");
-            });
+            text = "Would you like to enable it?";
         } else if (data.type === "pw") {
             headline = "Compromised password detected!";
-            subHeadline = `Your password for ${data.service} has been found in a data breach`;
-            swal({
+            text = `Your password for ${data.service} has been found in a data breach. Would you like to change it?`;
+        }
+        swal({
             title: headline,
-            subTitle: subHeadline,
-            text: "Would you like to change it?",
+            text: text,
             icon: "warning",
             buttons: {
                 cancel: "No, thanks",
@@ -56,13 +43,15 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
         })
             .then((value) => {
                 if (value === "ok") {
-                    const instruction = "OpenAI instructions...";
-                    return swal("Perfect! Here's an instruction:", instruction, "info");
+                    return swal({
+                        title: "Awesome! Here's how:",
+                        text: instructions.data,
+                        icon: "info",
+                    });
                 }
             })
             .then(() => {
                 swal("Survey! ", "Please tell us more about this moment...");
             });
-        }
     }
 });

@@ -15,24 +15,6 @@ services:
     command: npm run start-dev
     networks:
       - app-network
-    depends_on:
-      - mongodb
-
-  mongodb:
-    image: mongo:latest
-    container_name: db
-    restart: always
-    env_file:
-      - .env
-    ports:
-      - "27017:27017"
-    environment:
-      - MONGO_INITDB_ROOT_USERNAME=${DB_USER}
-      - MONGO_INITDB_ROOT_PASSWORD=${DB_PASSWORD}
-    networks:
-      - app-network
-    volumes:
-      - ./data:/data/db
 
 networks:
   app-network:
