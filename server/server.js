@@ -83,7 +83,8 @@ const createCompromisedPwTask = async (email, accounts) => {
                 $push: {
                     tasks: {
                         type: "pw",
-                        content: {name: account.name, domain: account.domain},
+                        service: account.name,
+                        url: account.domain,
                         state: "PENDING",
                     }
                 }
@@ -122,7 +123,7 @@ const create2FATask = async (email, url) => {
                 }
             }
         });
-        return {type: "2fa", url: url, state: "PENDING"};
+        return { type: "2fa", url: url, state: "PENDING" };
     } catch (err) {
         console.log('Could not create 2FA task.');
         console.log(err);
@@ -204,17 +205,17 @@ app.post('/user', async (req, res) => {
 
     const is2FAvailable = check2FA(userUrl);
     if (is2FAvailable) {
-        const taskCreated = await create2FATask(userEmail, userUrl);
-        if (taskCreated) {
+        const created2FaTask = await create2FATask(userEmail, userUrl);
+        if (created2FaTask) {
             await updateLast2FaNotificationDate(userEmail);
-            return res.send(taskCreated);
+            return res.send(created2FaTask);
         }
     }
 
-    const compromisedPwTask = await getNextCompromisedPwTask(userEmail);
-    if (compromisedPwTask) {
+    const createdCompromisedPwTask = await getNextCompromisedPwTask(userEmail);
+    if (createdCompromisedPwTask) {
         await updateLastPwNotificationDate(userEmail);
-        return res.send(compromisedPwTask);
+        return res.send(createdCompromisedPwTask);
     }
 
     return res.sendStatus(200);
@@ -225,14 +226,3 @@ app.listen(port, async () => {
     await connectDb();
     console.log(`Server is running on http://localhost:${port}`);
 });
-/* todo:
-    - 2FA
-        - trigger 2FA tasks immediately if task does not exist yet
-        - Buttons: remindMeLater -> 1h timeout, dismiss -> never ask again, alreadyEnables -> never ask again
-        - discuss with Maxi whether is is a good idea
-    - compromised passwords
-        - compromised passwords: 24h timeout between compromised password notifications
-        - Buttons: takeMeThere -> open link, remindMeLater -> 1h timeout, dismiss -> never ask again
-    - if quickly feasible, move notifications (also dismissed ones) into a table inside the popup
-    - notifications can be managed from there
-*/
