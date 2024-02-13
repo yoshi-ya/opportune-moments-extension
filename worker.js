@@ -14,7 +14,7 @@ async function sendData(userEmail, userUrl) {
     });
 }
 
-chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
     if (request.message === "urlChanged") {
         const res = await sendData(request.email, request.url);
         const data = await res.json();
@@ -25,6 +25,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
         const instructions = await instructionsRes.json();
         let headline = "";
         let text = "";
+        let affirmative = false;
         if (data.type === "2fa") {
             headline = "This website offers 2FA.";
             text = "Would you like to enable it?";
@@ -40,18 +41,30 @@ chrome.runtime.onMessage.addListener(async (request, sender, sendResponse) => {
                 cancel: "No, thanks",
                 ok: true,
             },
-        })
-            .then((value) => {
-                if (value === "ok") {
-                    return swal({
-                        title: "Awesome! Here's how:",
-                        text: instructions.data,
-                        icon: "info",
-                    });
-                }
-            })
-            .then(() => {
-                swal("Survey! ", "Please tell us more about this moment...");
+        }).then((value) => {
+            if (value === "ok") {
+                affirmative = true;
+                return swal({
+                    title: "Awesome! Here's how:",
+                    text: instructions.data,
+                    icon: "info",
+                });
+            }
+        }).then(() => {
+            if (affirmative) {
+                return swal("Why is this a good moment?", "Please describe", {
+                    content: "input",
+                });
+            }
+            return swal("Why is this an inappropriate moment?", "Please describe", {
+                content: "input",
             });
+        }).then((feedback) => {
+            // send to server
+            // todo: improve domain storage
+            //  don't ask for every google service
+            //  if popup did not show, ask again later (=> don't store URL in db)
+            swal(`You typed: ${feedback}`);
+        });
     }
 });
