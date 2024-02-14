@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors')
 const axios = require('axios');
+const url = require('url');
 const {MongoClient} = require('mongodb');
 const {OpenAI} = require("openai");
 const directory = require('./2fa_directory.json');
@@ -31,12 +32,11 @@ const connectDb = async () => {
         console.log("Database connected.");
     } catch (error) {
         console.log("Could not connect to DB.")
-        console.log(error);
         await client.close();
     }
 }
 
-const check2FA = (domain) => {
+const check2FA = (domain, email) => {
     let isAvailable = directory.some((entry) => {
         return domain.includes(entry[1].domain);
     });
@@ -47,6 +47,9 @@ const check2FA = (domain) => {
                 return domain.includes(additionalDomain);
             });
         });
+    }
+    if (isAvailable) {
+        // check for existing task with this domain
     }
     return isAvailable;
 }
@@ -85,8 +88,7 @@ const createCompromisedPwTask = async (email, accounts) => {
                 $push: {
                     tasks: {
                         type: "pw",
-                        service: account.name,
-                        url: account.domain,
+                        domain: account.domain,
                         state: "PENDING",
                     }
                 }
@@ -94,40 +96,6 @@ const createCompromisedPwTask = async (email, accounts) => {
         }
     } catch (err) {
         console.log('Could not create compromised password task.');
-        console.log(err);
-    }
-}
-
-const create2FATask = async (email, url) => {
-    const collection = client.db("app").collection("users");
-    let user;
-    try {
-        user = await collection.findOne({email: email});
-    } catch (err) {
-        console.log('Could not find user in DB.');
-    }
-    if (user.tasks) {
-        const tasks = user.tasks.filter((task) => {
-            return task.type === "2fa";
-        });
-        const taskExists = tasks.some((task) => {
-            return url.includes(task.url);
-        });
-        if (taskExists) {
-            return;
-        }
-    }
-    try {
-        await collection.findOneAndUpdate({email: email}, {
-            $push: {
-                tasks: {
-                    type: "2fa", url: url, state: "PENDING"
-                }
-            }
-        });
-        return {type: "2fa", url: url, state: "PENDING"};
-    } catch (err) {
-        console.log('Could not create 2FA task.');
         console.log(err);
     }
 }
@@ -169,15 +137,6 @@ const getNextCompromisedPwTask = async (email) => {
     }
 }
 
-const updateLast2FaNotificationDate = async (email) => {
-    const collection = client.db("app").collection("users");
-    try {
-        await collection.updateOne({email: email}, {$set: {last2FaNotificationDate: new Date()}});
-    } catch (err) {
-        console.log(`Could not update last 2FA notification date for user ${email}.`);
-    }
-}
-
 const updateLastPwNotificationDate = async (email) => {
     const collection = client.db("app").collection("users");
     try {
@@ -187,30 +146,24 @@ const updateLastPwNotificationDate = async (email) => {
     }
 }
 
-async function get2FaInstructions(url) {
-    console.log(`Getting 2FA instructions for ${url}`);
-  const completion = await openai.chat.completions.create({
-    messages: [{ role: "system", content: `Give a very short summary on how to enable 2FA for ${url}` }],
-    model: "gpt-3.5-turbo",
-  });
-  console.log(completion);
-  return completion.choices[0].message?.content;
-}
-
-async function getPwInstructions(url) {
-  const completion = await openai.chat.completions.create({
-    messages: [{ role: "system", content: `Give a very short summary on how to change your password for ${url}` }],
-    model: "gpt-3.5-turbo",
-  });
-
-  return completion.choices[0].message?.content;
+const updateLastPwNotificationState = async (email, domain) => {
+    const collection = client.db("app").collection("users");
+    try {
+        await collection.updateOne({email: email, "tasks.domain": domain}, {$set: {"tasks.$": {
+            type: "pw",
+            domain: domain,
+            state: "FINISHED"
+        }}});
+    } catch (err) {
+        console.log(`Could not update compromised password task state for user ${email}.`);
+    }
 }
 
 // routes
-app.post('/user', async (req, res) => {
+app.post('/task', async (req, res) => {
     const collection = client.db("app").collection("users");
     const userEmail = req.body.email;
-    const userUrl = req.body.url;
+    const domain = url.parse(req.body.url).hostname;
 
     let user;
     try {
@@ -220,22 +173,18 @@ app.post('/user', async (req, res) => {
     }
 
     if (!user) {
+        // creates new user with compromised password tasks
         await initializeUser(userEmail);
-        return res.sendStatus(201);
     }
 
-    const is2FAvailable = check2FA(userUrl);
+    const is2FAvailable = check2FA(domain, userEmail);
     if (is2FAvailable) {
-        const created2FaTask = await create2FATask(userEmail, userUrl);
-        if (created2FaTask) {
-            await updateLast2FaNotificationDate(userEmail);
-            return res.send(created2FaTask);
-        }
+        // todo: only if there is not a task for this user with the same domain
+        return res.send({type: "2fa", domain: domain});
     }
 
     const createdCompromisedPwTask = await getNextCompromisedPwTask(userEmail);
     if (createdCompromisedPwTask) {
-        await updateLastPwNotificationDate(userEmail);
         return res.send(createdCompromisedPwTask);
     }
 
@@ -245,13 +194,48 @@ app.post('/user', async (req, res) => {
 app.get("/instructions/:type/:url", async (req, res) => {
     const type = req.params.type;
     const url = req.params.url;
-    let instructions;
-    if (type === "2fa") {
-        instructions = await get2FaInstructions(url);
-    } else if (type === "pw") {
-        instructions = await getPwInstructions(url);
-    }
+    const openAiRequestText = type === "pw" ? `Give a very short summary on how to change your password for ${url}` : `Give a very short summary on how to enable 2FA for ${url}`;
+    const completion = await openai.chat.completions.create({
+        messages: [{role: "system", content: openAiRequestText}],
+        model: "gpt-3.5-turbo",
+    });
+    const instructions = completion.choices[0].message?.content;
     res.send({data: instructions});
+});
+
+app.post("/feedback", async (req, res) => {
+    const collection = client.db("app").collection("users");
+    try {
+        await collection.findOne({email: req.body.email});
+    } catch (err) {
+        console.log('Could not find user in DB.');
+        return res.sendStatus(400);
+    }
+    console.log(req.body);
+
+    try {
+        await collection.findOneAndUpdate({email: req.body.email}, {
+            $push: {
+                interactions: {
+                    date: new Date(),
+                    type: req.body.taskType,
+                    domain: req.body.domain,
+                    feedback: req.body.feedback || "",
+                    affirmative: req.body.affirmative,
+                }
+            }
+        });
+    } catch (err) {
+        console.log('Could not store popup interaction to DB.');
+        return res.sendStatus(400);
+    }
+
+    if (req.body.taskType === "pw") {
+        await updateLastPwNotificationDate(req.body.email);
+        await updateLastPwNotificationState(req.body.email, req.body.domain);
+    }
+
+    return res.sendStatus(201);
 });
 
 // Start the server and listen on the specified port
