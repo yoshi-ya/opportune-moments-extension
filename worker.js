@@ -54,11 +54,11 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
             }
         }).then(() => {
             if (affirmative) {
-                return swal("Why is this a good moment?", "Please describe", {
+                return swal("Why was this a good moment?", {
                     content: "input",
                 });
             }
-            return swal("Why is this an inappropriate moment?", "Please explain", {
+            return swal("Why is this an inappropriate moment?", {
                 content: "input",
             });
         }).then(async (feedback) => {
@@ -75,13 +75,6 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
                     taskType: taskType,
                 }),
             });
-            // todo: improve domain storage
-            //  don't ask for every google service
-            //  if popup did not show, ask again later (=> don't store URL in db)
-            //  improve feedback alert text - maybe a single alert is sufficient
-            //   -> Did you do the task? (yes/no) && Why? (input)
-            //  encode and decode URLs everywhere
-            //  write README
         });
     }
 });

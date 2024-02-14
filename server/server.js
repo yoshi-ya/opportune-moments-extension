@@ -36,7 +36,7 @@ const connectDb = async () => {
     }
 }
 
-const check2FA = (domain, email) => {
+const check2FA = (domain) => {
     let isAvailable = directory.some((entry) => {
         return domain.includes(entry[1].domain);
     });
@@ -47,9 +47,6 @@ const check2FA = (domain, email) => {
                 return domain.includes(additionalDomain);
             });
         });
-    }
-    if (isAvailable) {
-        // check for existing task with this domain
     }
     return isAvailable;
 }
@@ -75,7 +72,7 @@ const getCompromisedAccounts = async (email) => {
             }
         }
     } catch (error) {
-        console.log('No breaches found for this email.');
+        console.log('No breaches found.');
     }
     return breaches;
 }
@@ -96,7 +93,6 @@ const createCompromisedPwTask = async (email, accounts) => {
         }
     } catch (err) {
         console.log('Could not create compromised password task.');
-        console.log(err);
     }
 }
 
@@ -114,7 +110,7 @@ const getNextCompromisedPwTask = async (email) => {
     try {
         user = await collection.findOne({email: email});
     } catch (err) {
-        console.log(`Could not find user ${email} in DB.`);
+        console.log(`Could not find user in DB.`);
         return;
     }
     const now = new Date();
@@ -133,7 +129,7 @@ const getNextCompromisedPwTask = async (email) => {
             return pwTasks[0];
         }
     } catch (err) {
-        console.log(`Could not find compromised password task for user ${email}.`);
+        console.log(`Could not find compromised password task.`);
     }
 }
 
@@ -142,7 +138,7 @@ const updateLastPwNotificationDate = async (email) => {
     try {
         await collection.updateOne({email: email}, {$set: {lastPwNotificationDate: new Date()}});
     } catch (err) {
-        console.log(`Could not update last compromised password notification date for user ${email}.`);
+        console.log(`Could not update last compromised password notification date.`);
     }
 }
 
@@ -155,7 +151,7 @@ const updateLastPwNotificationState = async (email, domain) => {
             state: "FINISHED"
         }}});
     } catch (err) {
-        console.log(`Could not update compromised password task state for user ${email}.`);
+        console.log(`Could not update compromised password task state.`);
     }
 }
 
@@ -169,17 +165,24 @@ app.post('/task', async (req, res) => {
     try {
         user = await collection.findOne({email: userEmail});
     } catch (err) {
-        console.log(`Could not find user ${userEmail} in DB.`);
+        console.log(`Could not find user in DB.`);
     }
 
     if (!user) {
-        // creates new user with compromised password tasks
         await initializeUser(userEmail);
     }
 
     const is2FAvailable = check2FA(domain, userEmail);
-    if (is2FAvailable) {
-        // todo: only if there is not a task for this user with the same domain
+    let isRelevant = false;
+    try {
+        isRelevant = !user.interactions.some((interaction) => {
+        return interaction.domain === domain;
+    });
+    } catch (err) {
+        isRelevant = true;
+    }
+
+    if (is2FAvailable && isRelevant) {
         return res.send({type: "2fa", domain: domain});
     }
 
@@ -211,7 +214,6 @@ app.post("/feedback", async (req, res) => {
         console.log('Could not find user in DB.');
         return res.sendStatus(400);
     }
-    console.log(req.body);
 
     try {
         await collection.findOneAndUpdate({email: req.body.email}, {
@@ -226,7 +228,7 @@ app.post("/feedback", async (req, res) => {
             }
         });
     } catch (err) {
-        console.log('Could not store popup interaction to DB.');
+        console.log('Could not store interaction to DB.');
         return res.sendStatus(400);
     }
 
