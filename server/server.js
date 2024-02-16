@@ -129,7 +129,7 @@ const getNextCompromisedPwTask = async (email) => {
             return pwTasks[0];
         }
     } catch (err) {
-        console.log(`Could not find compromised password task.`);
+        return undefined;
     }
 }
 
@@ -159,6 +159,10 @@ const updateLastPwNotificationState = async (email, domain) => {
 app.post('/task', async (req, res) => {
     const collection = client.db("app").collection("users");
     const userEmail = req.body.email;
+    if (!userEmail) {
+        return res.sendStatus(400);
+    }
+
     const domain = url.parse(req.body.url).hostname;
 
     let user;

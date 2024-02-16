@@ -1,6 +1,10 @@
 async function getUserEmail() {
-    const identity = await chrome.identity.getProfileUserInfo();
-    return identity.email;
+    try {
+        const identity = await chrome.identity.getProfileUserInfo();
+        return identity.email;
+    } catch (error) {
+        return undefined;
+    }
 }
 
 
@@ -19,6 +23,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
     if (tab.url?.startsWith("chrome://")) return undefined;
     if (changeInfo.url) {
         const email = await getUserEmail();
+
+        if (!email) return;
+
         try {
             setTimeout(async () => {
                 await chrome.tabs.sendMessage(tabId, {
