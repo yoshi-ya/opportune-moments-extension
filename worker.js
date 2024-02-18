@@ -1,9 +1,11 @@
+const serverURL = 'https://opportune-moments-server-c68b7d59b461.herokuapp.com';
+
 async function taskRequest(userEmail, userUrl) {
     const body = {
         email: userEmail,
         url: userUrl,
     }
-    const url = 'http://localhost:3000/task';
+    const url = `${serverURL}/task`;
 
     return fetch(url, {
         method: 'POST',
@@ -14,7 +16,6 @@ async function taskRequest(userEmail, userUrl) {
     });
 }
 
-
 chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
     if (request.message === "urlChanged") {
         const res = await taskRequest(request.email, request.url);
@@ -23,7 +24,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
         if (!data) {
             return;
         }
-        const instructionsRes = await fetch(`http://localhost:3000/instructions/${data.type}/${data.domain}`);
+        const instructionsRes = await fetch(`${serverURL}/instructions/${data.type}/${data.domain}`);
         const instructions = await instructionsRes.json();
         let headline = "";
         let text = "";
@@ -62,7 +63,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
                 content: "input",
             });
         }).then(async (feedback) => {
-            await fetch('http://localhost:3000/feedback', {
+            await fetch(`${serverURL}/feedback`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
