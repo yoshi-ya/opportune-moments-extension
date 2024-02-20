@@ -1,5 +1,4 @@
-// const serverURL = 'https://opportune-moments-server-c68b7d59b461.herokuapp.com';
-const serverURL = 'http://localhost:3000';
+const serverURL = 'https://opportune-moments-server-c68b7d59b461.herokuapp.com';
 
 async function requestPopup(userEmail, userUrl) {
     const body = {
@@ -26,8 +25,8 @@ const surveyQuestion = async (title, text) => {
         content: "input",
     }).then((value) => {
         if (!value) {
-            swal({text: "Please answer the question.", closeOnEsc: false, closeOnClickOutside: false}).then(() => {
-                surveyQuestion(title, text);
+            return swal({text: "Please answer the question.", closeOnEsc: false, closeOnClickOutside: false}).then(() => {
+                return surveyQuestion(title, text);
             });
         }
         return value;
@@ -43,30 +42,46 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
             }
             const isSurvey = data.survey || false;
             if (isSurvey) {
-                let feedback = {};
+                let survey = {
+                    date: new Date()
+                };
                 return surveyQuestion("Question 1", "Text 1")
                     .then(
                         (value) => {
-                            feedback["question1"] = value;
+                            survey["question1"] = value;
                             return surveyQuestion("Question 2", "Text 2");
                         }
                     )
                     .then(
                         (value) => {
-                            feedback["question2"] = value;
+                            survey["question2"] = value;
                             return surveyQuestion("Question 3", "Text 3");
                         }
                     )
                     .then(
                         (value) => {
-                            feedback["question3"] = value;
-                            return swal({
-                                title: "Thank you!",
-                                text: `Question 1: ${feedback.question1}\nQuestion 2: ${feedback.question2}\nQuestion 3: ${feedback.question3}`,
-                                icon: "success",
+                            survey["question3"] = value;
+                            fetch(`${serverURL}/survey`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify({
+                                    email: request.email,
+                                    domain: data.domain,
+                                    survey: survey,
+                                    taskType: data.type,
+                                }),
+                            }).then((res) => {
+                                return swal({
+                                    title: `${res.status}`,
+                                    icon: "success",
+                                });
+                            }).catch(() => {
+                                console.log("Could not send survey to server.");
                             });
                         }
-                    )
+                    );
             }
 
             const taskType = data.type;
