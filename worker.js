@@ -1,4 +1,5 @@
-const serverURL = 'https://opportune-moments-server-c68b7d59b461.herokuapp.com';
+// const serverURL = 'https://opportune-moments-server-c68b7d59b461.herokuapp.com';
+const serverURL = 'http://localhost:3000';
 
 async function requestPopup(userEmail, userUrl) {
     const body = {
@@ -16,6 +17,19 @@ async function requestPopup(userEmail, userUrl) {
     });
 }
 
+const surveyIntro = async (title, text) => {
+    return swal({
+        title: title,
+        text: text,
+        closeOnClickOutside: false,
+        closeOnEsc: false,
+        buttons: {
+            cancel: "No, I did not.",
+            yes: true,
+        }
+    });
+}
+
 const surveyQuestion = async (title, text) => {
     return swal({
         title: title,
@@ -25,7 +39,11 @@ const surveyQuestion = async (title, text) => {
         content: "input",
     }).then((value) => {
         if (!value) {
-            return swal({text: "Please answer the question.", closeOnEsc: false, closeOnClickOutside: false}).then(() => {
+            return swal({
+                text: "Please answer the question.",
+                closeOnEsc: false,
+                closeOnClickOutside: false
+            }).then(() => {
                 return surveyQuestion(title, text);
             });
         }
@@ -45,41 +63,77 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
                 let survey = {
                     date: new Date()
                 };
-                return surveyQuestion("Question 1", "Text 1")
+                const text = data.type === "2fa"
+                    ? `Recently, you were tasked to enable 2FA for ${data.domain}. Did you do it?`
+                    : `Recently, you were tasked to change your password for ${data.domain}. Did you do it?`;
+                return surveyIntro("It's time for a super quick survey!", text)
                     .then(
                         (value) => {
-                            survey["question1"] = value;
-                            return surveyQuestion("Question 2", "Text 2");
-                        }
-                    )
-                    .then(
-                        (value) => {
-                            survey["question2"] = value;
-                            return surveyQuestion("Question 3", "Text 3");
-                        }
-                    )
-                    .then(
-                        (value) => {
-                            survey["question3"] = value;
-                            fetch(`${serverURL}/survey`, {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json',
-                                },
-                                body: JSON.stringify({
-                                    email: request.email,
-                                    domain: data.domain,
-                                    survey: survey,
-                                    taskType: data.type,
-                                }),
-                            }).then((res) => {
-                                return swal({
-                                    title: `${res.status}`,
-                                    icon: "success",
-                                });
-                            }).catch(() => {
-                                console.log("Could not send survey to server.");
-                            });
+                            if (value !== "yes") {
+                                fetch(`${serverURL}/survey`, {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                            },
+                                            body: JSON.stringify({
+                                                email: request.email,
+                                                domain: data.domain,
+                                                survey: false,
+                                                taskType: data.type,
+                                            }),
+                                        }).then(() => {
+                                            return swal({
+                                                title: 'Thank you for your time!',
+                                                icon: "success",
+                                            });
+                                        }).catch(() => {
+                                            console.log("Could not send survey to server.");
+                                        });
+                            }
+                            const surveyTitle = `${data.type} task for ${data.domain}`
+                            return surveyQuestion(surveyTitle, "At what time of day did you do the task?")
+                                .then(
+                                    (value) => {
+                                        survey["daytime"] = value;
+                                        return surveyQuestion(surveyTitle, "From which location did you do the task?");
+                                    }
+                                )
+                                .then(
+                                    (value) => {
+                                        survey["location"] = value;
+                                        return surveyQuestion(surveyTitle, "What were you doing before engaging with the task?");
+                                    }
+                                )
+                                .then(
+                                    (value) => {
+                                        survey["context"] = value;
+                                        return surveyQuestion(surveyTitle, "Why was that a good moment to do the task?");
+                                    }
+                                )
+                                .then(
+                                    (value) => {
+                                        survey["reason"] = value;
+                                        fetch(`${serverURL}/survey`, {
+                                            method: 'POST',
+                                            headers: {
+                                                'Content-Type': 'application/json',
+                                            },
+                                            body: JSON.stringify({
+                                                email: request.email,
+                                                domain: data.domain,
+                                                survey: survey,
+                                                taskType: data.type,
+                                            }),
+                                        }).then((res) => {
+                                            return swal({
+                                                title: 'Thank you for your time!',
+                                                icon: "success",
+                                            });
+                                        }).catch(() => {
+                                            console.log("Could not send survey to server.");
+                                        });
+                                    }
+                                );
                         }
                     );
             }
