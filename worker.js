@@ -1,5 +1,4 @@
-// const serverURL = 'https://opportune-moments-server-c68b7d59b461.herokuapp.com';
-const serverURL = 'http://localhost:3000';
+const serverURL = 'https://opportune-moments-server-c68b7d59b461.herokuapp.com';
 
 async function requestPopup(userEmail, userUrl) {
     const body = {
@@ -183,5 +182,3 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
         }
     }
 );
-// todo: survey also if they did not do task!
-// todo: overview table in popup menu

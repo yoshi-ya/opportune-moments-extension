@@ -1,7 +1,10 @@
-// todo:
-//  add icon for extension
-//  come up with name for extension
 document.addEventListener('DOMContentLoaded', async () => {
-    // code inside here runs whenever the extension is opened, i.e. someone clicks on the extension button
-    // here, we will display the security task list
+    const res = await fetch("https://opportune-moments-server-c68b7d59b461.herokuapp.com/");
+    const status = res.status;
+    const headline = document.getElementById("status");
+    if (status === 200) {
+        headline.innerText = "The extension is up and running!";
+    } else {
+        headline.innerText = "Thank you for your participation! The survey phase ended, you can now remove the extension.";
+    }
 });
