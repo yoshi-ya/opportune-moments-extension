@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener("DOMContentLoaded", async () => {
     const res = await fetch("https://opportune-moments-server-c68b7d59b461.herokuapp.com/");
     const status = res.status;
     const headline = document.getElementById("status");

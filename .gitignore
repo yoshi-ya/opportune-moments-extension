@@ -4,7 +4,7 @@ opportune-moments-plugin.iml
 *.DS_Store
 
 # node modules
-server/node_modules/
+node_modules/
 
 # dotenv environment file
 .env

@@ -13,7 +13,7 @@ chrome.runtime.onInstalled.addListener(() => {
         if (tabs[0].url?.startsWith("chrome://")) return undefined;
         chrome.scripting.executeScript({
             target: {tabId: tabs[0].id},
-            files: ['worker.js']
+            files: ["worker.js"]
         });
     });
 });
