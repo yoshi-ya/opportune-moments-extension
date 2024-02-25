@@ -1,4 +1,5 @@
-const serverURL = "https://opportune-moments-server-c68b7d59b461.herokuapp.com";
+// const serverURL = "https://opportune-moments-server-c68b7d59b461.herokuapp.com";
+const serverURL = "http://localhost:3000";
 
 async function requestPopup(userEmail, userUrl) {
     const body = {
@@ -62,40 +63,40 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
             let survey = {
                 date: new Date()
             };
+            const surveyTitle = data.type === "2fa"
+                ? `2FA task for ${data.domain}`
+                : `Compromised password task for ${data.domain}`;
             const text = data.type === "2fa"
                 ? `Recently, you were tasked to enable 2FA for ${data.domain}. Did you do it?`
                 : `Recently, you were tasked to change your password for ${data.domain}. Did you do it?`;
             return surveyIntro("It's time for a super quick survey!", text)
                 .then((value) => {
                     if (value !== "yes") {
-                        return fetch(`${serverURL}/survey`, {
-                            method: "POST",
-                            headers: {
-                                "Content-Type": "application/json",
-                            },
-                            body: JSON.stringify({
-                                email: request.email,
-                                domain: data.domain,
-                                survey: false,
-                                taskType: data.type,
-                            }),
-                        }).then(() => {
-                            return swal({
-                                title: "Thank you for your time!",
-                                icon: "success",
-                            });
-                        }).catch(() => {
-                            console.log("Could not send survey to server.");
-                        });
-                    } else {
-                        const surveyTitle = `${data.type} task for ${data.domain}`;
-                        return surveyQuestion(surveyTitle, "At what time of day did you do the task?")
+                        return surveyQuestion(surveyTitle, "Why did you not do the task?")
                             .then(
                                 (value) => {
-                                    survey["daytime"] = value;
-                                    return surveyQuestion(surveyTitle, "From which location did you do the task?");
+                                    survey["reason"] = value;
+                                    return fetch(`${serverURL}/survey`, {
+                                        method: "POST",
+                                        headers: {
+                                            "Content-Type": "application/json",
+                                        },
+                                        body: JSON.stringify({
+                                            email: request.email,
+                                            domain: data.domain,
+                                            survey: survey,
+                                            taskType: data.type,
+                                        }),
+                                    });
                                 }
-                            )
+                            ).then(() => {
+                                return swal({
+                                    title: "Thank you for your time!",
+                                    icon: "success",
+                                });
+                            });
+                    } else {
+                        return surveyQuestion(surveyTitle, "From which location did you do the task?")
                             .then(
                                 (value) => {
                                     survey["location"] = value;
@@ -122,7 +123,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
                                             survey: survey,
                                             taskType: data.type,
                                         }),
-                                    }).then((res) => {
+                                    }).then(() => {
                                         return swal({
                                             title: "Thank you for your time!",
                                             icon: "success",
