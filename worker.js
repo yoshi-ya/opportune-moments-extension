@@ -1,5 +1,4 @@
-// const serverURL = "https://opportune-moments-server-c68b7d59b461.herokuapp.com";
-const serverURL = "http://localhost:3000";
+const serverURL = "https://opportune-moments-server-c68b7d59b461.herokuapp.com";
 
 async function requestPopup(userEmail, userUrl) {
     const body = {
@@ -146,7 +145,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
             text = "Would you like to enable it?";
         } else if (data.type === "pw") {
             headline = "Compromised password detected!";
-            text = `Your password for ${data.service} has been found in a data breach. Would you like to change it?`;
+            text = `Your password for ${data.domain} has been found in a data breach. Would you like to change it?`;
         }
         swal({
             title: headline,
