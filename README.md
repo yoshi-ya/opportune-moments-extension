@@ -6,9 +6,6 @@ security enhancing suggestions to the user. You will be asked to complete a shor
 ## Prerequisites
 
 - Google Chrome Browser
-    - please make sure to
-      enable [Google SYNC](https://support.google.com/chrome/answer/185277?co=GENIE.Platform%3DDesktop&hl=en-GB)
-    - allowed search engines are Google and DuckDuckGo
 
 ## Installation
 
@@ -21,6 +18,8 @@ security enhancing suggestions to the user. You will be asked to complete a shor
 6. The extension should now be installed and ready to use
 7. You can pin the extension to the browser toolbar by clicking on the puzzle piece in the top right corner and then
    clicking on the pin icon next to the extension
+8. Enable [Google SYNC](https://support.google.com/chrome/answer/185277?co=GENIE.Platform%3DDesktop&hl=en-GB) in the Chrome browser
+9. Make sure your search engine is either Google or DuckDuckGo
 
 ## Usage and Study
 

@@ -1,4 +1,33 @@
 body {
     width: 200px;
-    padding: 7px;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-image: url('https://www.transparenttextures.com/patterns/absurdity.png');
+}
+
+.text-container {
+    background-color: transparent;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 600px;
+    width: 90%;
+    text-align: center;
+    background-image: linear-gradient(to right, #8DDBC7 0%, #50DFBA 100%);
+    color: #ffffff;
+    border: 0 solid #8DDBC7;
+}
+
+.text-container p {
+    background-color: transparent;
+    color: #333333;
+    font-size: 14px;
+    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
 }
