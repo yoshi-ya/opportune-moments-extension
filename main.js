@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     const status = res.status;
     const headline = document.getElementById("status");
     if (status === 200) {
-        headline.innerText = "The extension is up and running!";
+        headline.innerText = "The extension running and the survey is ongoing!";
     } else {
         headline.innerText = "Thank you for your participation! The survey phase ended, you can now remove the extension.";
     }
