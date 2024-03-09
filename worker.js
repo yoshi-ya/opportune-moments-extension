@@ -175,7 +175,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
             const text = data.type === "2fa"
                 ? `Recently, you were tasked to enable 2FA for ${data.domain}. Did you do it?`
                 : `Recently, you were tasked to change your password for ${data.domain}. Did you do it?`;
-            return surveyIntro("It's time for a super quick survey!", text)
+            await surveyIntro("It's time for a super quick survey!", text)
                 .then(async (value) => {
                     if (value !== "yes") {
                         return await nonAffirmativeSurvey(surveyTitle, request.email, data.domain, data.type, survey);
@@ -183,17 +183,18 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
                         return await affirmativeSurvey(surveyTitle, request.email, data.domain, data.type, survey);
                     }
                 });
+        } else {
+            const instructions = await getInstructions(data.type, data.domain);
+            let headline = "";
+            let text = "";
+            if (data.type === "2fa") {
+                headline = `${data.domain} offers 2FA.`;
+                text = "Would you like to enable it?";
+            } else if (data.type === "pw") {
+                headline = "Compromised password detected!";
+                text = `Your password for ${data.domain} has been found in a data breach. Would you like to change it?`;
+            }
+            await securityTaskPopup(headline, text, instructions, request.email, data.domain, data.type);
         }
-        const instructions = await getInstructions(data.type, data.domain);
-        let headline = "";
-        let text = "";
-        if (data.type === "2fa") {
-            headline = `${data.domain} offers 2FA.`;
-            text = "Would you like to enable it?";
-        } else if (data.type === "pw") {
-            headline = "Compromised password detected!";
-            text = `Your password for ${data.domain} has been found in a data breach. Would you like to change it?`;
-        }
-        await securityTaskPopup(headline, text, instructions, request.email, data.domain, data.type);
     }
 });

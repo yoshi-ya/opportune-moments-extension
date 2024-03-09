@@ -31,9 +31,9 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
                 await chrome.tabs.sendMessage(tabId, {
                     message: "urlChanged", url: changeInfo.url, email: email
                 });
-            }, 5000);
+            }, 15000);
         } catch (error) {
-            console.log(error);
+            console.log("The tab was closed, could not send message.");
         }
     }
 });
