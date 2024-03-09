@@ -127,7 +127,8 @@ const securityTaskPopup = async (title, text, instructions, email, domain, taskT
         let affirmative = false;
         if (value === "ok" && taskType === "pw") {
             affirmative = true;
-            window.open(domain, "_blank").focus();
+            const url = domain.startsWith("www") ? `https://${domain}` : `https://www.${domain}`;
+            window.open(url).focus();
         } else if (value === "ok") {
             affirmative = true;
             await swal({
@@ -155,12 +156,66 @@ const securityTaskPopup = async (title, text, instructions, email, domain, taskT
     });
 };
 
+const addEmailPopup = async (email, emails) => {
+    const title = emails.length === 0 ? "Please add some email addresses." : "Add another email address?";
+    const text = emails.length === 0 ? "The extension will search data breaches where your email addresses has been found." : "You can add as many email addresses as you want.";
+    return swal({
+        title,
+        text,
+        content: {
+            element: "input",
+            attributes: {
+                placeholder: "Enter an email address",
+            },
+        },
+        closeOnClickOutside: false,
+        closeOnEsc: false,
+        buttons: {
+            catch: {
+                text: "I'm all set!",
+                value: "catch",
+                closeModal: true,
+            },
+            confirm: {
+                text: "Add email",
+                value: true,
+            }
+        },
+    }).then(async (value) => {
+        if (value !== "catch") {
+            emails.push(value);
+            return addEmailPopup(email, emails);
+        }
+        await fetch(`${serverURL}/email`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                email,
+                emails,
+            }),
+        });
+    });
+};
+
 chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
     if (request.message === "urlChanged") {
         const res = await requestPopup(request.email, request.url);
         const data = await res.json();
         if (!data) {
             return;
+        }
+        const isInitial = data.initial || false;
+        if (isInitial) {
+            return swal({
+                title: "Welcome to my study!",
+                text: "This extension will occasionally suggest security tasks for you to do. It's completely up to you whether you want to do them or not. For every task, there will be a super quick survey to fill out.",
+                closeOnClickOutside: false,
+                closeOnEsc: false,
+            }).then(() => {
+                return addEmailPopup(request.email, []);
+            });
         }
         const isSurvey = data.survey || false;
         if (isSurvey) {
@@ -199,7 +254,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
                 text = "Would you like to enable it?";
             } else if (data.type === "pw") {
                 headline = "Compromised password detected!";
-                text = `Your password for ${data.domain} has been found in a data breach. Would you like to change it?`;
+                text = `Your password for ${data.account} on ${data.domain} has been found in a data breach. Would you like to change it?`;
             }
             await securityTaskPopup(headline, text, instructions, request.email, data.domain, data.type);
         }
