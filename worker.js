@@ -1,4 +1,5 @@
-const serverURL = "https://opportune-moments-server-c68b7d59b461.herokuapp.com";
+// const serverURL = "https://opportune-moments-server-c68b7d59b461.herokuapp.com";
+const serverURL = "http://localhost:3000";
 
 async function requestPopup(userEmail, userUrl) {
     const body = {
@@ -50,12 +51,12 @@ const surveyQuestion = async (title, text) => {
     });
 };
 
-const nonAffirmativeSurvey = async (title, email, domain, taskType, survey) => {
-    return surveyQuestion(title, "Why did you not do the task?")
+const shortSurvey = async (title, text, email, domain, taskType, survey) => {
+    return surveyQuestion(title, text)
         .then(
             (value) => {
                 survey["reason"] = value;
-                return fetch(`${serverURL}/survey`, {
+                fetch(`${serverURL}/survey`, {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -68,12 +69,7 @@ const nonAffirmativeSurvey = async (title, email, domain, taskType, survey) => {
                     }),
                 });
             }
-        ).then(() => {
-            return swal({
-                title: "Thank you for your time!",
-                icon: "success",
-            });
-        });
+        );
 };
 
 const affirmativeSurvey = async (title, email, domain, taskType, survey) => {
@@ -104,11 +100,6 @@ const affirmativeSurvey = async (title, email, domain, taskType, survey) => {
                         survey,
                         taskType,
                     }),
-                }).then(() => {
-                    return swal({
-                        title: "Thank you for your time!",
-                        icon: "success",
-                    });
                 }).catch(() => {
                     console.log("Could not send survey to server.");
                 });
@@ -122,7 +113,7 @@ const getInstructions = async (type, domain) => {
 };
 
 const securityTaskPopup = async (title, text, instructions, email, domain, taskType) => {
-    return swal({
+    swal({
         title,
         text,
         icon: "warning",
@@ -132,9 +123,14 @@ const securityTaskPopup = async (title, text, instructions, email, domain, taskT
             cancel: "No, thanks",
             ok: true,
         },
-    }).then((value) => {
-        if (value === "ok") {
-            return swal({
+    }).then(async (value) => {
+        let affirmative = false;
+        if (value === "ok" && taskType === "pw") {
+            affirmative = true;
+            window.open(domain, "_blank").focus();
+        } else if (value === "ok") {
+            affirmative = true;
+            await swal({
                 title: "Awesome! Here's how:",
                 text: instructions,
                 closeOnClickOutside: false,
@@ -142,7 +138,8 @@ const securityTaskPopup = async (title, text, instructions, email, domain, taskT
                 icon: "info",
             });
         }
-    }).then(async () => {
+        return affirmative;
+    }).then(async (affirmative) => {
         await fetch(`${serverURL}/interaction`, {
             method: "POST",
             headers: {
@@ -152,6 +149,7 @@ const securityTaskPopup = async (title, text, instructions, email, domain, taskT
                 email,
                 domain,
                 taskType,
+                affirmative,
             }),
         });
     });
@@ -169,22 +167,31 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
             let survey = {
                 date: new Date()
             };
+            const affirmative = data.affirmative || false;
             const surveyTitle = data.type === "2fa"
                 ? `2FA task for ${data.domain}`
                 : `Compromised password task for ${data.domain}`;
-            const text = data.type === "2fa"
-                ? `Recently, you were tasked to enable 2FA for ${data.domain}. Did you do it?`
-                : `Recently, you were tasked to change your password for ${data.domain}. Did you do it?`;
-            await surveyIntro("It's time for a super quick survey!", text)
-                .then(async (value) => {
-                    if (value !== "yes") {
-                        return await nonAffirmativeSurvey(surveyTitle, request.email, data.domain, data.type, survey);
-                    } else {
-                        return await affirmativeSurvey(surveyTitle, request.email, data.domain, data.type, survey);
-                    }
-                });
+            if (affirmative) {
+                const text = data.type === "2fa"
+                    ? `Recently, you were tasked to enable 2FA for ${data.domain}. Did you do it?`
+                    : `Recently, you were tasked to change your password for ${data.domain}. Did you do it?`;
+                await surveyIntro("It's time for a super quick survey!", text)
+                    .then(async (value) => {
+                        if (value !== "yes") {
+                            const shortSurveyText = "Why did you not do the task?";
+                            return await shortSurvey(surveyTitle, shortSurveyText, request.email, data.domain, data.type, survey);
+                        } else {
+                            return await affirmativeSurvey(surveyTitle, request.email, data.domain, data.type, survey);
+                        }
+                    });
+            } else {
+                const text = data.type === "2fa"
+                    ? `Recently, you were tasked to enable 2FA for ${data.domain}. Why did you not do it?`
+                    : `Recently, you were tasked to change your password for ${data.domain}. Why did you not do it?`;
+                return await shortSurvey("It's time for a super quick survey!", text, request.email, data.domain, data.type, survey);
+            }
         } else {
-            const instructions = await getInstructions(data.type, data.domain);
+            const instructions = data.type === "2fa" ? await getInstructions(data.domain) : "";
             let headline = "";
             let text = "";
             if (data.type === "2fa") {
