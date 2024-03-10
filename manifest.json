@@ -20,7 +20,8 @@
   "content_scripts": [
     {
         "matches": ["<all_urls>"],
-        "js": ["worker.js", "lib/sweetalert/dist/sweetalert.min.js"]
+        "js": ["worker.js", "lib/sweetalert/dist/sweetalert.min.js"],
+        "css": ["style.css"]
     }
   ],
   "icons": {

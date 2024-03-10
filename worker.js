@@ -72,6 +72,38 @@ const shortSurvey = async (title, text, email, domain, taskType, survey) => {
         );
 };
 
+const surveySlider = async (title, text) => {
+    return swal({
+        title: title,
+        text: "How important did you perceive the task?",
+        closeOnClickOutside: false,
+        closeOnEsc: false,
+        className: "likert",
+        content: {
+            element: "input",
+            attributes: {
+                type: "range",
+                min: "1",
+                max: "7",
+                step: "1",
+                value: "4",
+                id: "slider",
+            },
+        },
+    }).then((value) => {
+        if (!value || value === "") {
+            return swal({
+                text: "Please answer the question.",
+                closeOnEsc: false,
+                closeOnClickOutside: false
+            }).then(() => {
+                return surveySlider(title, text);
+            });
+        }
+        return value;
+    });
+};
+
 const affirmativeSurvey = async (title, email, domain, taskType, survey) => {
     return surveyQuestion(title, "From which location did you do the task?")
         .then(
@@ -89,6 +121,12 @@ const affirmativeSurvey = async (title, email, domain, taskType, survey) => {
         .then(
             (value) => {
                 survey["reason"] = value;
+                return surveySlider(title, "How important was it for you to do the task?");
+            }
+        )
+        .then(
+            (value) => {
+                survey["importance"] = value;
                 fetch(`${serverURL}/survey`, {
                     method: "POST",
                     headers: {
