@@ -258,7 +258,7 @@ chrome.runtime.onMessage.addListener(async (request, sender, _sendResponse) => {
         const isSurvey = data.survey || false;
         if (isSurvey) {
             let survey = {
-                date: new Date()
+                date: new Date().toLocaleString("de-DE", { timeZone: "Europe/Berlin" }),
             };
             const affirmative = data.affirmative || false;
             const surveyTitle = data.type === "2fa"
