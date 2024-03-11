@@ -1,5 +1,4 @@
-// const serverURL = "https://opportune-moments-server-c68b7d59b461.herokuapp.com";
-const serverURL = "http://localhost:3000";
+const serverURL = "https://opportune-moments-server-c68b7d59b461.herokuapp.com";
 
 async function requestPopup(userEmail, userUrl) {
     const body = {
