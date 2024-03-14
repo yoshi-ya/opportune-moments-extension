@@ -74,7 +74,7 @@ const shortSurvey = async (title, text, email, domain, taskType, survey) => {
 const surveySlider = async (title, text) => {
     return swal({
         title: title,
-        text: "How important did you perceive the task?",
+        text: text,
         closeOnClickOutside: false,
         closeOnEsc: false,
         className: "likert",
@@ -120,7 +120,7 @@ const affirmativeSurvey = async (title, email, domain, taskType, survey) => {
         .then(
             (value) => {
                 survey["reason"] = value;
-                return surveySlider(title, "How important was it for you to do the task?");
+                return surveySlider(title, "How important did you consider the task?");
             }
         )
         .then(
@@ -195,7 +195,7 @@ const securityTaskPopup = async (title, text, instructions, email, domain, taskT
 
 const addEmailPopup = async (email, emails) => {
     const title = emails.length === 0 ? "Please add some email addresses." : "Add another email address?";
-    const text = emails.length === 0 ? "The extension will search data breaches where your email addresses has been found." : "You can add as many email addresses as you want.";
+    const text = emails.length === 0 ? "The extension will search for data breaches where your email address has been found." : "You can add as many email addresses as you want.";
     return swal({
         title,
         text,
